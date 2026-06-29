@@ -49,7 +49,7 @@ architecture artifacts themselves.
 | Day | Focus | Status |
 |---|---|---|
 | 1 | Domain Immersion & Monolith Analysis | ✅ Complete |
-| 2 | Service Decomposition | ⬜ Pending |
+| 2 | Service Decomposition | ✅ Complete |
 | 3 | C4 Diagrams & SLAs | ⬜ Pending |
 | 4 | Kafka Design | ⬜ Pending |
 | 5 | API Contracts | ⬜ Pending |
@@ -70,6 +70,14 @@ architecture artifacts themselves.
 - [`docs/day01/02_monolith_analysis.md`](docs/day01/02_monolith_analysis.md) — Legacy ShieldPay system analysis and business capability mapping
 - [`docs/day01/03_event_storming.md`](docs/day01/03_event_storming.md) — Initial Event Storming pass on the transaction lifecycle
 - [`daily-commits/Day01_Domain_Immersion.md`](daily-commits/Day01_Domain_Immersion.md) — Day 1 work log
+
+## Day 2 deliverables
+
+- [`docs/day02/01_bounded_context_map.md`](docs/day02/01_bounded_context_map.md) — 9 bounded contexts + Reference Data, with context mapping patterns
+- [`diagrams/c4/day02_c4_level1_system_context.md`](diagrams/c4/day02_c4_level1_system_context.md) — C4 Level 1 System Context diagram
+- [`diagrams/c4/day02_c4_level2_container_draft.md`](diagrams/c4/day02_c4_level2_container_draft.md) — C4 Level 2 Container diagram (draft, finalized Day 3)
+- [`docs/day02/02_service_decomposition_table.md`](docs/day02/02_service_decomposition_table.md) — 10-service decomposition table (tech, data store, team ownership)
+- [`daily-commits/Day02_Service_Decomposition.md`](daily-commits/Day02_Service_Decomposition.md) — Day 2 work log
 
 ## AI usage disclosure
 
