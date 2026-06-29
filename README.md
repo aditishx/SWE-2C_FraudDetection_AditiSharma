@@ -68,7 +68,7 @@ architecture artifacts themselves.
 
 - [`docs/day01/01_domain_glossary.md`](docs/day01/01_domain_glossary.md) — 54-term fraud detection domain glossary
 - [`docs/day01/02_monolith_analysis.md`](docs/day01/02_monolith_analysis.md) — Legacy ShieldPay system analysis and business capability mapping
-- [`docs/day01/03_event_storming.md`](docs/day01/03_event_storming.md) — Initial Event Storming pass on the transaction lifecycle
+- [`diagrams/event-storming/day01_initial_event_storm.md`](diagrams/event-storming/day01_initial_event_storm.md) — Initial Event Storming pass on the transaction lifecycle
 - [`daily-commits/Day01_Domain_Immersion.md`](daily-commits/Day01_Domain_Immersion.md) — Day 1 work log
 
 ## Day 2 deliverables
