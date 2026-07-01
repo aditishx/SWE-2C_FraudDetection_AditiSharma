@@ -50,8 +50,8 @@ architecture artifacts themselves.
 |---|---|---|
 | 1 | Domain Immersion & Monolith Analysis | ✅ Complete |
 | 2 | Service Decomposition | ✅ Complete |
-| 3 | C4 Diagrams & SLAs | ⬜ Pending |
-| 4 | Kafka Design | ⬜ Pending |
+| 3 | C4 Diagrams & SLAs | ✅ Complete |
+| 4 | Kafka Design | ✅ Complete |
 | 5 | API Contracts | ⬜ Pending |
 | 6 | Event-Driven Architecture | ⬜ Pending |
 | 7 | Rule Engine Design | ⬜ Pending |
@@ -78,6 +78,21 @@ architecture artifacts themselves.
 - [`diagrams/c4/day02_c4_level2_container_draft.md`](diagrams/c4/day02_c4_level2_container_draft.md) — C4 Level 2 Container diagram (draft, finalized Day 3)
 - [`docs/day02/02_service_decomposition_table.md`](docs/day02/02_service_decomposition_table.md) — 10-service decomposition table (tech, data store, team ownership)
 - [`daily-commits/Day02_Service_Decomposition.md`](daily-commits/Day02_Service_Decomposition.md) — Day 2 work log
+
+## Day 3 deliverables
+
+- [`diagrams/c4/day03_c4_level2_final.md`](diagrams/c4/day03_c4_level2_final.md) — C4 Level 2 Container diagram (final) with latency budget breakdown
+- [`diagrams/c4/day03_c4_level3_components.md`](diagrams/c4/day03_c4_level3_components.md) — C4 Level 3 Component diagrams for 4 core services
+- [`docs/day03/01_service_sla_table.md`](docs/day03/01_service_sla_table.md) — Service SLA table (Tiers 1-3) with fallback behaviours
+- [`docs/day03/02_polyglot_persistence.md`](docs/day03/02_polyglot_persistence.md) — Polyglot persistence justification
+- [`daily-commits/Day03_C4_Diagrams.md`](daily-commits/Day03_C4_Diagrams.md) — Day 3 work log
+
+## Day 4 deliverables
+
+- [`docs/day04/01_kafka_topic_topology.md`](docs/day04/01_kafka_topic_topology.md) — Kafka topic topology (10 topics, partition rationale, DLQ strategy)
+- [`configs/kafka_event_schemas.proto`](configs/kafka_event_schemas.proto) — Protobuf event schema definitions for all topics
+- [`configs/schema_registry_config.yaml`](configs/schema_registry_config.yaml) — Schema Registry configuration with compatibility levels
+- [`daily-commits/Day04_Kafka_Design.md`](daily-commits/Day04_Kafka_Design.md) — Day 4 work log
 
 ## AI usage disclosure
 
