@@ -13,8 +13,7 @@ mapping a business process by identifying:
 - 🟣 **External Systems** — things outside our control that trigger or receive events
 
 The output below is the **first pass**, covering the happy-path transaction lifecycle as
-described in the legacy monolith. We will expand this to 50+ events on Day 6, once we've
-also modelled the *investigation* and *notification* sub-flows in detail.
+described in the legacy monolith.
 
 ## Transaction Lifecycle — Flow Diagram
 

@@ -1,11 +1,10 @@
 # Day 4 Work Log — Kafka Topic Design and Event Schemas
 
 **Date:** 1 July 2026
-**Hours logged:** ~8h
 **Commit tag:** `Day04_Kafka_Design`
 
 ## What I did
-- Designed 10 Kafka topics covering the complete transaction lifecycle (exceeds the 8-topic minimum from Section D2).
+- Designed 10 Kafka topics covering the complete transaction lifecycle.
 - Defined Protobuf schemas for all event types: TransactionEvent, EnrichedTransactionEvent, RuleEvaluationResult, AnomalyScore, GraphSignals, RiskDecision, AuditEvent, NotificationRequest.
 - Configured Schema Registry with BACKWARD compatibility for all operational topics and FULL compatibility for audit.events (stricter, because regulators must be able to query any schema version).
 - Designed DLQ topology with per-source-topic DLQ topics, retention policies, and alert severity mappings.

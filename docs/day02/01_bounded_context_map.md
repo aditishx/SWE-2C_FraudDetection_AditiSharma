@@ -28,9 +28,7 @@ architecture matters here at all.
 | 8 | **Audit & Compliance** | Immutable audit trail of every decision, rule change, model deployment | Append-only audit log (hash-chained) | Must be tamper-proof and isolated from every other write path — a Wirecard-style failure (Part C4) starts the moment audit data can be touched by the same process as business logic |
 | 9 | **Customer Profile** | Behavioural profile management (typical amounts, merchants, geolocations, devices) | Customer behavioural features | Updated incrementally and continuously — different read/write pattern than transactional data |
 
-*(Reference Data — MCCs, BIN ranges, country risk scores, watchlists — is intentionally treated as a **shared kernel**, see below, rather than its own full service for this design, since it's read-heavy reference lookup data with no independent business workflow of its own. We list it as a lightweight 10th service in the decomposition table for completeness, since several core services depend on it directly.)*
-
-**Total: 9 core bounded contexts + 1 lightweight reference-data service = 10 services** — within the 8-12 target range from Section A1.3.
+**Total: 9 core bounded contexts + 1 lightweight reference-data service = 10 services**
 
 ## Context Mapping Patterns
 

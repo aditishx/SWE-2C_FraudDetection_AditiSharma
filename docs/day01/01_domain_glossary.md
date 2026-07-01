@@ -93,7 +93,3 @@
 | **Audit Trail** | An immutable record of every decision and change in the system, required for regulatory examination. |
 
 ---
-
-**Term count: 54** ✅ (exceeds the 50-term minimum from Day 1 requirements)
-
-*Note: This glossary will grow as new concepts are introduced on later days (e.g., Kafka-specific terms on Day 4, Istio terms on Day 10). New terms will be appended to the relevant section rather than creating duplicate glossaries.*

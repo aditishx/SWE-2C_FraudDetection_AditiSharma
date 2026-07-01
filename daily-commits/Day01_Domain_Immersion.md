@@ -1,7 +1,6 @@
 # Day 1 Work Log — Domain Immersion and Monolith Analysis
 
 **Date:** 28 June 2026
-**Hours logged:** ~8h
 **Commit tag:** `Day01_Domain_Immersion`
 
 ## What I did

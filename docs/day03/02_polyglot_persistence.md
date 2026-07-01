@@ -28,9 +28,7 @@
 
 **No two services share a database.**
 
-This is non-negotiable in microservices architecture (Section A1.2: "communication
-between bounded contexts is through published interfaces, never through shared
-databases"). If two services share a database, they are secretly coupled — a schema
+This is non-negotiable in microservices architecture. If two services share a database, they are secretly coupled — a schema
 change for one breaks the other, and they can't be deployed or scaled independently.
 Every service in this architecture has its own dedicated datastore instance.
 

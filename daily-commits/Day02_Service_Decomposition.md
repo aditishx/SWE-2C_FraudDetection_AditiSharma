@@ -1,7 +1,6 @@
 # Day 2 Work Log — Bounded Context Identification and Service Decomposition
 
 **Date:** 29 June 2026
-**Hours logged:** ~8h
 **Commit tag:** `Day02_Service_Decomposition`
 
 ## What I did

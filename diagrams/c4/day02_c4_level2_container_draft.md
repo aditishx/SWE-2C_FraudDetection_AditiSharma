@@ -93,14 +93,6 @@ flowchart TB
 - Service mesh sidecars (Day 10)
 - Per-service SLA table (Day 3)
 
-## A decision worth flagging now
-
-Note that `rule-engine-svc`, `anomaly-detection-svc`, and `graph-analysis-svc` are all
-drawn receiving from **Kafka**, not via direct synchronous calls from Transaction
-Ingestion. This might look surprising given Section A1.4 says the *critical path*
-(Ingestion → Rule Engine → Anomaly Detection → Risk Scoring) has a combined 100ms
-gRPC latency budget — implying synchronous calls.
-
 **Our resolution (to be finalised Day 3):** Transaction Ingestion publishes the
 enriched transaction to Kafka *and* the critical-path services consume it as a
 low-latency streaming read (not a slow batch poll) — Kafka consumer lag for this

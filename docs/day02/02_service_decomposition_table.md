@@ -4,7 +4,7 @@
 
 For each service: bounded context, primary responsibility, language/framework
 (justified by the workload), data store, and the team that would realistically own
-it (per the "team alignment" heuristic — 3-5 developers each, Section A1.2).
+it.
 
 | # | Service Name | Bounded Context | Primary Responsibility | Tech (Language/Framework) | Data Store | Team Ownership |
 |---|---|---|---|---|---|---|
@@ -21,8 +21,7 @@ it (per the "team alignment" heuristic — 3-5 developers each, Section A1.2).
 
 ## Notes on team ownership realism
 
-Per Section B1.3 (VP of Engineering's evaluation lens — "can a team of 30-40 engineers
-build and maintain this?"), we've deliberately **shared ownership across a few services**
+Per Section B1.3, we've deliberately **shared ownership across a few services**
 rather than inventing 10 separate teams:
 
 - **Fraud Rules Team** owns both Rule Engine and Risk Scoring — they're conceptually
@@ -51,4 +50,4 @@ was picked for the *access pattern* of its service, not by default —
 
 ## Service count check
 
-**10 services total** — within the Section A1.3 target of 8-12. ✅
+**10 services total** 

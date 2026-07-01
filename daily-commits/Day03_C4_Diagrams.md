@@ -1,7 +1,6 @@
 # Day 3 Work Log — C4 Diagrams, SLAs, and Persistence
 
 **Date:** 30 June 2026
-**Hours logged:** ~8h
 **Commit tag:** `Day03_C4_Diagrams`
 
 ## What I did
