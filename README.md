@@ -50,10 +50,10 @@ architecture artifacts themselves.
 |---|---|---|
 | 1 | Domain Immersion & Monolith Analysis | ✅ Complete |
 | 2 | Service Decomposition | ✅ Complete |
-| 3 | C4 Diagrams & SLAs | ⬜ Pending |
-| 4 | Kafka Design | ⬜ Pending |
-| 5 | API Contracts | ⬜ Pending |
-| 6 | Event-Driven Architecture | ⬜ Pending |
+| 3 | C4 Diagrams & SLAs | ✅ Complete |
+| 4 | Kafka Design | ✅ Complete |
+| 5 | API Contracts | ✅ Complete |
+| 6 | Event-Driven Architecture | ✅ Complete |
 | 7 | Rule Engine Design | ⬜ Pending |
 | 8 | ML Architecture | ⬜ Pending |
 | 9 | Graph Analysis | ⬜ Pending |
@@ -79,7 +79,35 @@ architecture artifacts themselves.
 - [`docs/day02/02_service_decomposition_table.md`](docs/day02/02_service_decomposition_table.md) — 10-service decomposition table (tech, data store, team ownership)
 - [`daily-commits/Day02_Service_Decomposition.md`](daily-commits/Day02_Service_Decomposition.md) — Day 2 work log
 
+## Day 3 deliverables
+
+- [`diagrams/c4/day03_c4_level2_final.md`](diagrams/c4/day03_c4_level2_final.md) — C4 Level 2 Container diagram (final) with latency budget breakdown
+- [`diagrams/c4/day03_c4_level3_components.md`](diagrams/c4/day03_c4_level3_components.md) — C4 Level 3 Component diagrams for 4 core services
+- [`docs/day03/01_service_sla_table.md`](docs/day03/01_service_sla_table.md) — Service SLA table (Tiers 1-3) with fallback behaviours
+- [`docs/day03/02_polyglot_persistence.md`](docs/day03/02_polyglot_persistence.md) — Polyglot persistence justification
+- [`daily-commits/Day03_C4_Diagrams.md`](daily-commits/Day03_C4_Diagrams.md) — Day 3 work log
+
+## Day 4 deliverables
+
+- [`docs/day04/01_kafka_topic_topology.md`](docs/day04/01_kafka_topic_topology.md) — Kafka topic topology (10 topics, partition rationale, DLQ strategy)
+- [`configs/kafka_event_schemas.proto`](configs/kafka_event_schemas.proto) — Protobuf event schema definitions for all topics
+- [`configs/schema_registry_config.yaml`](configs/schema_registry_config.yaml) — Schema Registry configuration with compatibility levels
+- [`daily-commits/Day04_Kafka_Design.md`](daily-commits/Day04_Kafka_Design.md) — Day 4 work log
+
 ## AI usage disclosure
 
 See `/docs/AI_USAGE.md` (to be added) for disclosure of AI-assisted content per the
 project's AI-Assisted Development Policy (Section E5).
+
+## Day 5 deliverables
+
+- [`api-specs/openapi.yaml`](api-specs/openapi.yaml) — OpenAPI 3.0 spec for all 6 external REST APIs
+- [`api-specs/fraud_grpc_services.proto`](api-specs/fraud_grpc_services.proto) — Protobuf gRPC service definitions (6 services)
+- [`docs/day05/01_api_gateway_routing.md`](docs/day05/01_api_gateway_routing.md) — Gateway routing table, rate limiting, auth flows, circuit breaker
+- [`daily-commits/Day05_API_Contracts.md`](daily-commits/Day05_API_Contracts.md) — Day 5 work log
+
+## Day 6 deliverables
+
+- [`diagrams/event-storming/day06_full_event_storm.md`](diagrams/event-storming/day06_full_event_storm.md) — Full Event Storming (55 events, 4 aggregates, policies)
+- [`docs/day06/01_saga_orchestration.md`](docs/day06/01_saga_orchestration.md) — 3 Saga diagrams with compensating transactions + CQRS read models
+- [`daily-commits/Day06_EDA_Specification.md`](daily-commits/Day06_EDA_Specification.md) — Day 6 work log

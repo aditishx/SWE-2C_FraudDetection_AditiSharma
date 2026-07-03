@@ -1,0 +1,218 @@
+// fraud_grpc_services.proto
+// Day 5 Deliverable — Internal gRPC Service Definitions
+// Author: Aditi Sharma | Date: 2 July 2026
+// All internal service-to-service calls use gRPC with mTLS (enforced by Istio)
+
+syntax = "proto3";
+package fraud.services.v1;
+option java_package = "com.shieldpay.fraud.services.v1";
+
+import "google/protobuf/timestamp.proto";
+
+// ─────────────────────────────────────────────
+// 1. RuleEngineService
+// Deadline: 50ms | Retry: 2 attempts, 10ms backoff
+// ─────────────────────────────────────────────
+service RuleEngineService {
+  rpc Evaluate(RuleEvaluateRequest) returns (RuleEvaluateResponse);
+}
+
+message RuleEvaluateRequest {
+  string transaction_id      = 1;
+  string trace_id            = 2;
+  string card_number_hash    = 3;
+  string merchant_mcc        = 4;
+  double amount              = 5;
+  string currency_code       = 6;
+  string channel             = 7;
+  string country_code        = 8;
+  string device_fingerprint  = 9;
+  string ip_hash             = 10;
+  bool   is_vpn              = 11;
+  int32  txn_count_10min     = 12;
+  double distance_from_home  = 13;
+  google.protobuf.Timestamp transaction_time = 14;
+}
+
+message RuleEvaluateResponse {
+  string   transaction_id = 1;
+  double   rule_score     = 2;  // 0-1000 composite
+  repeated RuleHit hits   = 3;
+  int64    evaluation_ms  = 4;  // actual evaluation latency for monitoring
+
+  message RuleHit {
+    string rule_id            = 1;
+    string rule_name          = 2;
+    string rule_version       = 3;
+    double score_delta        = 4;
+    string matched_condition  = 5;
+    string action             = 6;
+  }
+}
+
+// Error codes for RuleEngineService:
+// NOT_FOUND       — rule set not loaded (should never happen; triggers P1)
+// DEADLINE_EXCEEDED — evaluation took >50ms; Risk Scoring will proceed without
+// INTERNAL        — unexpected error in rule evaluation
+
+// ─────────────────────────────────────────────
+// 2. AnomalyDetectionService
+// Deadline: 30ms | Retry: 1 attempt, 5ms backoff
+// ─────────────────────────────────────────────
+service AnomalyDetectionService {
+  rpc Score(AnomalyScoreRequest) returns (AnomalyScoreResponse);
+}
+
+message AnomalyScoreRequest {
+  string transaction_id   = 1;
+  string trace_id         = 2;
+  string card_number_hash = 3;
+  string channel          = 4;
+  double amount           = 5;
+  string currency_code    = 6;
+  string merchant_mcc     = 7;
+  string country_code     = 8;
+  string device_fingerprint = 9;
+  bool   is_vpn           = 10;
+  google.protobuf.Timestamp transaction_time = 11;
+  // Note: additional features retrieved from feature store INSIDE the service
+  // Caller does not need to supply all features
+}
+
+message AnomalyScoreResponse {
+  string   transaction_id     = 1;
+  double   ml_score           = 2;  // 0-1000 composite ensemble score
+  double   supervised_score   = 3;
+  double   unsupervised_score = 4;
+  string   model_version      = 5;
+  repeated FeatureContribution top_features = 6;
+
+  message FeatureContribution {
+    string feature_name  = 1;
+    double feature_value = 2;
+    double shap_value    = 3;
+  }
+}
+
+// ─────────────────────────────────────────────
+// 3. GraphAnalysisService
+// Deadline: 50ms (real-time path) | Retry: 1 attempt, 10ms backoff
+// Note: community detection runs on read replica — does NOT use this RPC
+// ─────────────────────────────────────────────
+service GraphAnalysisService {
+  rpc AnalyseRelationships(GraphAnalysisRequest) returns (GraphAnalysisResponse);
+}
+
+message GraphAnalysisRequest {
+  string transaction_id     = 1;
+  string trace_id           = 2;
+  string card_number_hash   = 3;
+  string device_fingerprint = 4;
+  string ip_hash            = 5;
+  string merchant_id        = 6;
+  string email_hash         = 7;
+  string phone_hash         = 8;
+  string address_hash       = 9;
+}
+
+message GraphAnalysisResponse {
+  string transaction_id         = 1;
+  double graph_score            = 2;  // 0-1000
+  int32  hops_to_known_fraud    = 3;  // -1 if no path found within 6 hops
+  double community_suspicion    = 4;  // Louvain community risk 0-1
+  double centrality_rank        = 5;  // PageRank of the card node
+  string fraud_topology_matched = 6;  // "" if no known topology matched
+  int64  query_ms               = 7;
+}
+
+// ─────────────────────────────────────────────
+// 4. RiskScoringService
+// Deadline: 25ms | Retry: 2 attempts, 5ms backoff
+// ─────────────────────────────────────────────
+service RiskScoringService {
+  rpc ComputeScore(ComputeScoreRequest) returns (ComputeScoreResponse);
+}
+
+message ComputeScoreRequest {
+  string transaction_id  = 1;
+  string trace_id        = 2;
+  double rule_score      = 3;
+  double ml_score        = 4;
+  double graph_score     = 5;
+  bool   graph_available = 6;  // false if graph service timed out
+  string channel         = 7;
+  string market          = 8;  // e.g. "IN", "SG", "AE"
+  string card_product    = 9;  // e.g. "CREDIT", "DEBIT", "PREPAID"
+}
+
+message ComputeScoreResponse {
+  string transaction_id  = 1;
+  double composite_score = 2;
+  string action          = 3;  // AUTO_APPROVE / STEP_UP_AUTH / MANUAL_REVIEW / AUTO_DECLINE
+  string explanation     = 4;  // Human-readable for regulators and case analysts
+  double rule_weight     = 5;
+  double ml_weight       = 6;
+  double graph_weight    = 7;
+}
+
+// ─────────────────────────────────────────────
+// 5. CustomerProfileService
+// Deadline: 10ms | Retry: 2 attempts, 5ms backoff
+// ─────────────────────────────────────────────
+service CustomerProfileService {
+  rpc GetProfile(GetProfileRequest) returns (GetProfileResponse);
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
+}
+
+message GetProfileRequest {
+  string card_number_hash = 1;
+  string trace_id         = 2;
+}
+
+message GetProfileResponse {
+  string card_number_hash              = 1;
+  double avg_amount_30d                = 2;
+  double avg_amount_60d                = 3;
+  double avg_amount_90d                = 4;
+  double typical_transaction_hour_mean = 5;
+  double typical_transaction_hour_std  = 6;
+  string home_country                  = 7;
+  string home_city                     = 8;
+  repeated string preferred_mccs       = 9;
+  int32  card_age_days                 = 10;
+  double risk_tier                     = 11;
+}
+
+message UpdateProfileRequest {
+  string transaction_id   = 1;
+  string card_number_hash = 2;
+  double amount           = 3;
+  string merchant_mcc     = 4;
+  string country_code     = 5;
+  google.protobuf.Timestamp transaction_time = 6;
+}
+
+message UpdateProfileResponse {
+  bool success = 1;
+}
+
+// ─────────────────────────────────────────────
+// 6. FeatureStoreService
+// Deadline: 5ms | Retry: 2 attempts, 2ms backoff
+// ─────────────────────────────────────────────
+service FeatureStoreService {
+  rpc GetFeatures(GetFeaturesRequest) returns (GetFeaturesResponse);
+}
+
+message GetFeaturesRequest {
+  string card_number_hash = 1;
+  string trace_id         = 2;
+  repeated string feature_names = 3;  // empty = return all features
+}
+
+message GetFeaturesResponse {
+  string card_number_hash = 1;
+  map<string, double> features = 2;  // feature_name -> feature_value
+  google.protobuf.Timestamp computed_at = 3;
+  bool is_realtime = 4;  // true if Kafka Streams computed; false if batch (Spark)
+}

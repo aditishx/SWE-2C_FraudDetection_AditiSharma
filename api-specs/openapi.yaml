@@ -1,0 +1,570 @@
+openapi: 3.0.3
+info:
+  title: ShieldPay Fraud Detection Platform API
+  description: |
+    External-facing REST API for the ShieldPay real-time fraud detection platform.
+    All endpoints are exposed through the API Gateway (Kong / AWS API Gateway).
+    Internal service-to-service communication uses gRPC (see fraud_grpc_services.proto).
+  version: 1.0.0
+  contact:
+    name: Aditi Sharma — Platform Architecture
+  license:
+    name: Strictly Private and Confidential
+
+servers:
+  - url: https://api.shieldpay.in/api/v1
+    description: Production (India region)
+  - url: https://staging-api.shieldpay.in/api/v1
+    description: Staging
+
+security:
+  - BearerAuth: []
+
+# ─────────────────────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────────────────────
+paths:
+
+  # ── 1. Submit a transaction ──────────────────────────────
+  /transactions:
+    post:
+      summary: Submit a transaction for real-time fraud evaluation
+      operationId: submitTransaction
+      tags: [Transactions]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      x-rate-limit: "1000 req/min per merchant (configurable per contract)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionRequest'
+            example:
+              transaction_id: "txn_01HX9K2P3Q4R5S6T7U8V"
+              card_number_hash: "a3f8c2d1e4b5..."
+              merchant_id: "merch_MUM_001"
+              merchant_mcc: "5411"
+              amount: 4999.00
+              currency_code: "INR"
+              channel: "ECOMMERCE"
+              terminal_id: "term_web_001"
+      responses:
+        '200':
+          description: Transaction evaluated — decision returned synchronously
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionDecisionResponse'
+              example:
+                transaction_id: "txn_01HX9K2P3Q4R5S6T7U8V"
+                action: "AUTO_APPROVE"
+                composite_score: 145
+                explanation: "No rules triggered. ML score normal. No suspicious graph relationships."
+                decided_at: "2026-07-01T10:23:45.123Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── 2. Get risk score for a transaction ─────────────────
+  /transactions/{transactionId}/risk-score:
+    get:
+      summary: Retrieve the risk score and explanation for a processed transaction
+      operationId: getTransactionRiskScore
+      tags: [Transactions]
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "txn_01HX9K2P3Q4R5S6T7U8V"
+      responses:
+        '200':
+          description: Risk score and full explanation retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskScoreResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── 3. List fraud cases ──────────────────────────────────
+  /cases:
+    get:
+      summary: List fraud investigation cases (paginated, filterable)
+      operationId: listCases
+      tags: [Cases]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [OPEN, IN_REVIEW, RESOLVED, ESCALATED]
+        - name: assigned_to
+          in: query
+          schema:
+            type: string
+          description: Filter by analyst ID
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list of cases
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── 4. Record case decision ──────────────────────────────
+  /cases/{caseId}/decision:
+    put:
+      summary: Record analyst decision on a fraud case
+      operationId: recordCaseDecision
+      tags: [Cases]
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaseDecisionRequest'
+            example:
+              decision: "CONFIRMED_FRAUD"
+              analyst_notes: "Customer confirmed they did not make this transaction."
+              initiate_chargeback: true
+      responses:
+        '200':
+          description: Decision recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseDecisionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── 5. List rules ────────────────────────────────────────
+  /rules:
+    get:
+      summary: List fraud detection rules (paginated)
+      operationId: listRules
+      tags: [Rules]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [DRAFT, REVIEW, APPROVED, ACTIVE, DEPRECATED, RETIRED]
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [VELOCITY, AMOUNT, GEOGRAPHIC, MCC, WATCHLIST, BEHAVIOURAL, DEVICE]
+      responses:
+        '200':
+          description: Paginated rule list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create a new fraud detection rule
+      operationId: createRule
+      tags: [Rules]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuleDefinition'
+      responses:
+        '201':
+          description: Rule created in DRAFT status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── 6. Dashboard metrics ─────────────────────────────────
+  /dashboard/metrics:
+    get:
+      summary: Get aggregated fraud detection statistics
+      operationId: getDashboardMetrics
+      tags: [Dashboard]
+      parameters:
+        - name: granularity
+          in: query
+          schema:
+            type: string
+            enum: [HOURLY, DAILY, WEEKLY]
+            default: HOURLY
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: channel
+          in: query
+          schema:
+            type: string
+            enum: [POS, ECOMMERCE, ATM, UPI, MOBILE, ALL]
+            default: ALL
+      responses:
+        '200':
+          description: Aggregated metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardMetricsResponse'
+
+# ─────────────────────────────────────────────────────────────
+# COMPONENTS
+# ─────────────────────────────────────────────────────────────
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: RS256-signed JWT. Claims include sub (merchant_id), roles, and exp.
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: For legacy integrations only. JWT preferred.
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error_code: "VALIDATION_ERROR"
+            message: "amount must be a positive number"
+            trace_id: "4bf92f3577b34da6a3ce929d0e0e4736"
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    TransactionRequest:
+      type: object
+      required: [transaction_id, card_number_hash, merchant_id, merchant_mcc, amount, currency_code, channel]
+      properties:
+        transaction_id:
+          type: string
+          description: Globally unique transaction identifier (UUID or ULID)
+        card_number_hash:
+          type: string
+          description: SHA-256 of the PAN — never send raw card number
+        merchant_id:
+          type: string
+        merchant_mcc:
+          type: string
+          pattern: '^\d{4}$'
+          description: 4-digit Merchant Category Code
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+        currency_code:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 currency code
+        channel:
+          type: string
+          enum: [POS, ECOMMERCE, ATM, UPI, MOBILE]
+        terminal_id:
+          type: string
+
+    TransactionDecisionResponse:
+      type: object
+      properties:
+        transaction_id:
+          type: string
+        action:
+          type: string
+          enum: [AUTO_APPROVE, STEP_UP_AUTH, MANUAL_REVIEW, AUTO_DECLINE]
+        composite_score:
+          type: integer
+          minimum: 0
+          maximum: 1000
+        explanation:
+          type: string
+        decided_at:
+          type: string
+          format: date-time
+
+    RiskScoreResponse:
+      type: object
+      properties:
+        transaction_id:
+          type: string
+        composite_score:
+          type: integer
+        rule_score:
+          type: integer
+        ml_score:
+          type: integer
+        graph_score:
+          type: integer
+        triggered_rules:
+          type: array
+          items:
+            type: object
+            properties:
+              rule_id:
+                type: string
+              rule_name:
+                type: string
+              score_delta:
+                type: integer
+        top_ml_features:
+          type: array
+          items:
+            type: object
+            properties:
+              feature_name:
+                type: string
+              shap_value:
+                type: number
+        graph_signals:
+          type: object
+          properties:
+            hops_to_known_fraud:
+              type: integer
+            community_suspicion:
+              type: number
+        action:
+          type: string
+          enum: [AUTO_APPROVE, STEP_UP_AUTH, MANUAL_REVIEW, AUTO_DECLINE]
+
+    CaseListResponse:
+      type: object
+      properties:
+        cases:
+          type: array
+          items:
+            $ref: '#/components/schemas/CaseSummary'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    CaseSummary:
+      type: object
+      properties:
+        case_id:
+          type: string
+        transaction_id:
+          type: string
+        status:
+          type: string
+          enum: [OPEN, IN_REVIEW, RESOLVED, ESCALATED]
+        assigned_to:
+          type: string
+        composite_score:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    CaseDecisionRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [CONFIRMED_FRAUD, FALSE_POSITIVE, ESCALATE, NEEDS_MORE_INFO]
+        analyst_notes:
+          type: string
+          maxLength: 2000
+        initiate_chargeback:
+          type: boolean
+          default: false
+
+    CaseDecisionResponse:
+      type: object
+      properties:
+        case_id:
+          type: string
+        decision:
+          type: string
+        resolved_at:
+          type: string
+          format: date-time
+
+    RuleDefinition:
+      type: object
+      required: [name, category, conditions, actions]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          enum: [VELOCITY, AMOUNT, GEOGRAPHIC, MCC, WATCHLIST, BEHAVIOURAL, DEVICE]
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        conditions:
+          type: object
+          description: Nested AND/OR/NOT condition tree (see rule engine YAML schema)
+        actions:
+          type: array
+          items:
+            type: string
+            enum: [FLAG, BLOCK, SCORE_ADJUST, NOTIFY, STEP_UP_AUTH]
+        effective_date:
+          type: string
+          format: date
+        expiry_date:
+          type: string
+          format: date
+
+    RuleResponse:
+      type: object
+      properties:
+        rule_id:
+          type: string
+        version:
+          type: integer
+        status:
+          type: string
+          enum: [DRAFT, REVIEW, APPROVED, ACTIVE, DEPRECATED, RETIRED]
+        created_at:
+          type: string
+          format: date-time
+
+    RuleListResponse:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleResponse'
+        total:
+          type: integer
+        page:
+          type: integer
+
+    DashboardMetricsResponse:
+      type: object
+      properties:
+        period_start:
+          type: string
+          format: date-time
+        period_end:
+          type: string
+          format: date-time
+        total_transactions:
+          type: integer
+        approved:
+          type: integer
+        declined:
+          type: integer
+        step_up_auth:
+          type: integer
+        manual_review:
+          type: integer
+        fraud_detection_rate:
+          type: number
+          format: double
+        false_positive_rate:
+          type: number
+          format: double
+
+    ErrorResponse:
+      type: object
+      properties:
+        error_code:
+          type: string
+        message:
+          type: string
+        trace_id:
+          type: string
+          description: OpenTelemetry trace ID for debugging
