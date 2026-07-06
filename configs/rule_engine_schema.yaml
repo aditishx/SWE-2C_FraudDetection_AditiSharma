@@ -1,0 +1,133 @@
+# Rule Engine Configuration Schema
+# Day 7 Deliverable | Author: Aditi Sharma | Date: 6 July 2026
+#
+# This YAML schema defines the structure of every fraud detection rule.
+# Rules are authored via the Rule Management UI (no code deployment needed).
+# Each saved change creates a new version — old versions are archived, never deleted.
+
+# ─────────────────────────────────────────────
+# SCHEMA DEFINITION (meta-schema)
+# Validated at rule-save time against the JSON Schema in rule_engine_schema.json
+# ─────────────────────────────────────────────
+
+rule:
+
+  # ── Identity & Metadata ──────────────────────────────────────────────────
+  rule_id:
+    type: string
+    description: Globally unique ID (UUID). Assigned by system on first creation.
+    example: "rule_01HX9K2P3Q4R5S6T7U8V"
+
+  version:
+    type: integer
+    description: Auto-incremented on every change. Version 1 = initial creation.
+    example: 3
+
+  name:
+    type: string
+    maxLength: 100
+    example: "High Velocity — 5 txn in 10 min"
+
+  description:
+    type: string
+    maxLength: 500
+    example: "Flags cards with more than 5 transactions in any 10-minute window"
+
+  category:
+    type: string
+    enum: [VELOCITY, AMOUNT, GEOGRAPHIC, MCC, WATCHLIST, BEHAVIOURAL, DEVICE]
+
+  severity:
+    type: string
+    enum: [LOW, MEDIUM, HIGH, CRITICAL]
+    description: |
+      LOW    — score_adjust only, no block
+      MEDIUM — flag for analyst review if combined score crosses threshold
+      HIGH   — triggers step-up auth
+      CRITICAL — immediate auto-decline regardless of composite score
+
+  author:
+    type: string
+    description: User ID of the analyst who created this version
+
+  created_at:
+    type: string
+    format: date-time
+
+  effective_date:
+    type: string
+    format: date
+    description: Rule becomes active at midnight on this date (IST)
+
+  expiry_date:
+    type: string
+    format: date
+    description: Rule auto-retires at midnight on this date. Null = no expiry.
+
+  status:
+    type: string
+    enum: [DRAFT, REVIEW, APPROVED, ACTIVE, DEPRECATED, RETIRED]
+
+  # ── Performance Constraints ──────────────────────────────────────────────
+  max_evaluation_time_ms:
+    type: integer
+    default: 10
+    description: |
+      Hard limit on rule evaluation time. Rule engine skips this rule
+      and logs a warning if exceeded. Entire rule set must complete in <50ms.
+
+  # ── Entity Scope ─────────────────────────────────────────────────────────
+  scope:
+    type: string
+    enum: [CARDHOLDER, MERCHANT, TERMINAL, NETWORK, DEVICE]
+    description: |
+      What entity this rule's temporal windows are partitioned by.
+      CARDHOLDER — velocity counts per card_number_hash
+      MERCHANT   — velocity counts per merchant_id
+      TERMINAL   — velocity counts per terminal_id
+      NETWORK    — applies to all transactions on a card network
+      DEVICE     — velocity counts per device_fingerprint
+
+  # ── Conditions ───────────────────────────────────────────────────────────
+  # Conditions form a nested AND/OR/NOT tree with unlimited nesting depth.
+  # Leaf nodes are simple comparisons. Branch nodes are logical operators.
+  #
+  # Leaf node structure:
+  #   field:           the transaction field or derived feature to evaluate
+  #   operator:        eq | neq | gt | gte | lt | lte | in | not_in | between | regex | exists
+  #   value:           the threshold or reference value
+  #   temporal_window: (optional) aggregation over a time window
+  #     function:      count | sum | avg | max | min | distinct_count
+  #     duration_minutes: integer
+  #     scope_field:   field to partition the window by (e.g. card_number_hash)
+  #
+  # Branch node structure:
+  #   operator: AND | OR | NOT
+  #   conditions: [list of child nodes — can be leaf or branch]
+
+  conditions:
+    description: Root node of the condition tree. Must be AND, OR, NOT, or a leaf.
+
+  # ── Actions ──────────────────────────────────────────────────────────────
+  actions:
+    type: array
+    description: Executed in order if ALL conditions evaluate to true
+    items:
+      type: object
+      properties:
+        type:
+          enum: [FLAG, BLOCK, SCORE_ADJUST, NOTIFY, STEP_UP_AUTH]
+        params:
+          description: Action-specific parameters
+          examples:
+            SCORE_ADJUST: {delta: 250}
+            NOTIFY:       {channel: "SLACK", template_id: "high_velocity_alert"}
+            STEP_UP_AUTH: {method: "OTP_SMS"}
+            BLOCK:        {duration_minutes: 60}
+
+  # ── A/B Testing ──────────────────────────────────────────────────────────
+  ab_test:
+    enabled: false
+    shadow_mode: true       # true = run but don't act on result; compare to live rule
+    traffic_split_pct: 10   # % of transactions routed to this rule version
+    comparison_days: 7      # run shadow for N days before deciding to promote

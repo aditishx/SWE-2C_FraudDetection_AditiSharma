@@ -54,8 +54,8 @@ architecture artifacts themselves.
 | 4 | Kafka Design | ✅ Complete |
 | 5 | API Contracts | ✅ Complete |
 | 6 | Event-Driven Architecture | ✅ Complete |
-| 7 | Rule Engine Design | ⬜ Pending |
-| 8 | ML Architecture | ⬜ Pending |
+| 7 | Rule Engine Design | ✅ Complete |
+| 8 | ML Architecture | ✅ Complete |
 | 9 | Graph Analysis | ⬜ Pending |
 | 10 | Security Design | ⬜ Pending |
 | 11 | API Gateway | ⬜ Pending |
@@ -111,3 +111,16 @@ project's AI-Assisted Development Policy (Section E5).
 - [`diagrams/event-storming/day06_full_event_storm.md`](diagrams/event-storming/day06_full_event_storm.md) — Full Event Storming (55 events, 4 aggregates, policies)
 - [`docs/day06/01_saga_orchestration.md`](docs/day06/01_saga_orchestration.md) — 3 Saga diagrams with compensating transactions + CQRS read models
 - [`daily-commits/Day06_EDA_Specification.md`](daily-commits/Day06_EDA_Specification.md) — Day 6 work log
+
+## Day 7 deliverables
+
+- [`configs/rule_engine_schema.yaml`](configs/rule_engine_schema.yaml) — Rule definition YAML schema
+- [`configs/rule_engine_schema.json`](configs/rule_engine_schema.json) — JSON Schema for validation
+- [`configs/sample_rules.yaml`](configs/sample_rules.yaml) — 20 sample rules across 7 categories
+- [`docs/day07/01_rule_lifecycle_and_simulation.md`](docs/day07/01_rule_lifecycle_and_simulation.md) — Lifecycle state machine, simulation spec, A/B testing, performance monitoring
+- [`daily-commits/Day07_Rule_Engine_Design.md`](daily-commits/Day07_Rule_Engine_Design.md) — Day 7 work log
+
+## Day 8 deliverables
+
+- [`docs/day08/01_ml_serving_architecture.md`](docs/day08/01_ml_serving_architecture.md) — Model registry, deployment pipeline, ONNX Runtime, feature store, ensemble, monitoring, champion-challenger
+- [`daily-commits/Day08_ML_Architecture.md`](daily-commits/Day08_ML_Architecture.md) — Day 8 work log

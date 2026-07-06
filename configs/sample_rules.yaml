@@ -1,0 +1,454 @@
+# 20 Sample Fraud Detection Rules
+# Day 7 Deliverable | Author: Aditi Sharma | Date: 6 July 2026
+# Categories: VELOCITY(5), AMOUNT(3), GEOGRAPHIC(3), MCC(3), WATCHLIST(2), BEHAVIOURAL(2), DEVICE(2)
+
+rules:
+
+# ═══════════════════════════════════════════════
+# VELOCITY RULES (5)
+# ═══════════════════════════════════════════════
+
+- rule_id: rule_V001
+  name: "High Velocity — 5+ txn in 10 minutes"
+  category: VELOCITY
+  severity: HIGH
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: txn_count
+        operator: gt
+        value: 5
+        temporal_window:
+          function: count
+          duration_minutes: 10
+          scope_field: card_number_hash
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 300}
+    - type: STEP_UP_AUTH
+      params: {method: OTP_SMS}
+
+- rule_id: rule_V002
+  name: "High Velocity — 10+ txn in 60 minutes"
+  category: VELOCITY
+  severity: CRITICAL
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: txn_count
+        operator: gt
+        value: 10
+        temporal_window:
+          function: count
+          duration_minutes: 60
+          scope_field: card_number_hash
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 500}
+    - type: BLOCK
+      params: {duration_minutes: 60}
+
+- rule_id: rule_V003
+  name: "Many Distinct Merchants in 10 minutes"
+  category: VELOCITY
+  severity: HIGH
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: distinct_merchant_count
+        operator: gt
+        value: 4
+        temporal_window:
+          function: distinct_count
+          duration_minutes: 10
+          scope_field: card_number_hash
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 250}
+
+- rule_id: rule_V004
+  name: "Enumeration Attack — small-amount rapid fire"
+  category: VELOCITY
+  severity: CRITICAL
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: txn_count
+        operator: gt
+        value: 8
+        temporal_window:
+          function: count
+          duration_minutes: 5
+          scope_field: card_number_hash
+      - field: amount
+        operator: lt
+        value: 100
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 600}
+    - type: BLOCK
+      params: {duration_minutes: 120}
+    - type: NOTIFY
+      params: {channel: PAGERDUTY, template_id: enumeration_alert}
+
+- rule_ID: rule_V005
+  name: "Merchant Velocity — 20+ txn at same merchant in 1 hour"
+  category: VELOCITY
+  severity: MEDIUM
+  scope: MERCHANT
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: txn_count
+        operator: gt
+        value: 20
+        temporal_window:
+          function: count
+          duration_minutes: 60
+          scope_field: merchant_id
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 150}
+
+# ═══════════════════════════════════════════════
+# AMOUNT RULES (3)
+# ═══════════════════════════════════════════════
+
+- rule_id: rule_A001
+  name: "Large Domestic Transaction — above 5 lakh INR"
+  category: AMOUNT
+  severity: HIGH
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: amount
+        operator: gte
+        value: 500000
+      - field: currency_code
+        operator: eq
+        value: INR
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 200}
+    - type: STEP_UP_AUTH
+      params: {method: OTP_SMS}
+
+- rule_id: rule_A002
+  name: "Amount Spike — 5 std dev above 90-day average"
+  category: AMOUNT
+  severity: HIGH
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: amount_z_score_90d
+        operator: gt
+        value: 5.0
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 280}
+
+- rule_id: rule_A003
+  name: "International Transaction above 1 lakh INR equivalent"
+  category: AMOUNT
+  severity: MEDIUM
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: amount_inr_equivalent
+        operator: gte
+        value: 100000
+      - field: country_code
+        operator: neq
+        value: IN
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 150}
+    - type: STEP_UP_AUTH
+      params: {method: OTP_SMS}
+
+# ═══════════════════════════════════════════════
+# GEOGRAPHIC RULES (3)
+# ═══════════════════════════════════════════════
+
+- rule_id: rule_G001
+  name: "Impossible Travel — two countries within 2 hours"
+  category: GEOGRAPHIC
+  severity: CRITICAL
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: distinct_country_count
+        operator: gt
+        value: 1
+        temporal_window:
+          function: distinct_count
+          duration_minutes: 120
+          scope_field: card_number_hash
+      - field: impossible_travel_flag
+        operator: eq
+        value: true
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 500}
+    - type: BLOCK
+      params: {duration_minutes: 30}
+    - type: NOTIFY
+      params: {channel: SMS, template_id: impossible_travel_alert}
+
+- rule_id: rule_G002
+  name: "High-Risk Country Transaction"
+  category: GEOGRAPHIC
+  severity: HIGH
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: country_risk_score
+        operator: gt
+        value: 0.8
+      - field: country_code
+        operator: not_in
+        value: [IN, SG, AE, US, GB, AU]
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 250}
+    - type: STEP_UP_AUTH
+      params: {method: OTP_SMS}
+
+- rule_id: rule_G003
+  name: "First Transaction from New Country"
+  category: GEOGRAPHIC
+  severity: MEDIUM
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: country_in_travel_history
+        operator: eq
+        value: false
+      - field: country_risk_score
+        operator: gt
+        value: 0.5
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 120}
+
+# ═══════════════════════════════════════════════
+# MCC RULES (3)
+# ═══════════════════════════════════════════════
+
+- rule_id: rule_M001
+  name: "First-Time High-Risk MCC — Gambling"
+  category: MCC
+  severity: HIGH
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: merchant_mcc
+        operator: in
+        value: ["7995", "7994", "7993"]
+      - field: first_time_mcc
+        operator: eq
+        value: true
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 300}
+    - type: STEP_UP_AUTH
+      params: {method: OTP_SMS}
+
+- rule_id: rule_M002
+  name: "Cryptocurrency / Quasi-Cash MCC"
+  category: MCC
+  severity: HIGH
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: OR
+    conditions:
+      - field: merchant_mcc
+        operator: in
+        value: ["6051", "6050", "4829"]
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 200}
+
+- rule_id: rule_M003
+  name: "Sudden MCC Category Switch"
+  category: MCC
+  severity: MEDIUM
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: mcc_category_switches_7d
+        operator: gt
+        value: 3
+        temporal_window:
+          function: distinct_count
+          duration_minutes: 10080
+          scope_field: card_number_hash
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 130}
+
+# ═══════════════════════════════════════════════
+# WATCHLIST RULES (2)
+# ═══════════════════════════════════════════════
+
+- rule_id: rule_W001
+  name: "Card on Compromised Card List"
+  category: WATCHLIST
+  severity: CRITICAL
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: card_on_compromise_watchlist
+        operator: eq
+        value: true
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 700}
+    - type: BLOCK
+      params: {duration_minutes: 0}
+    - type: NOTIFY
+      params: {channel: PAGERDUTY, template_id: compromised_card_alert}
+
+- rule_id: rule_W002
+  name: "IP Address on Known Botnet / Proxy List"
+  category: WATCHLIST
+  severity: HIGH
+  scope: DEVICE
+  effective_date: "2026-01-01"
+  conditions:
+    operator: OR
+    conditions:
+      - field: ip_on_botnet_list
+        operator: eq
+        value: true
+      - field: ip_is_tor
+        operator: eq
+        value: true
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 350}
+
+# ═══════════════════════════════════════════════
+# BEHAVIOURAL RULES (2)
+# ═══════════════════════════════════════════════
+
+- rule_id: rule_B001
+  name: "Unusual Transaction Hour — outside normal window"
+  category: BEHAVIOURAL
+  severity: MEDIUM
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: transaction_hour_z_score
+        operator: gt
+        value: 3.0
+      - field: amount
+        operator: gt
+        value: 5000
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 140}
+
+- rule_id: rule_B002
+  name: "Online Surge for Primarily Offline Cardholder"
+  category: BEHAVIOURAL
+  severity: MEDIUM
+  scope: CARDHOLDER
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: online_txn_ratio_30d
+        operator: lt
+        value: 0.1
+      - field: channel
+        operator: eq
+        value: ECOMMERCE
+      - field: txn_count
+        operator: gt
+        value: 3
+        temporal_window:
+          function: count
+          duration_minutes: 60
+          scope_field: card_number_hash
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 180}
+    - type: STEP_UP_AUTH
+      params: {method: OTP_SMS}
+
+# ═══════════════════════════════════════════════
+# DEVICE / NETWORK RULES (2)
+# ═══════════════════════════════════════════════
+
+- rule_id: rule_D001
+  name: "Jailbroken / Rooted Device"
+  category: DEVICE
+  severity: HIGH
+  scope: DEVICE
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: device_is_jailbroken
+        operator: eq
+        value: true
+      - field: channel
+        operator: in
+        value: [ECOMMERCE, MOBILE, UPI]
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 220}
+    - type: STEP_UP_AUTH
+      params: {method: OTP_SMS}
+
+- rule_id: rule_D002
+  name: "New Device — First Transaction from Unknown Device"
+  category: DEVICE
+  severity: MEDIUM
+  scope: DEVICE
+  effective_date: "2026-01-01"
+  conditions:
+    operator: AND
+    conditions:
+      - field: device_seen_before
+        operator: eq
+        value: false
+      - field: amount
+        operator: gt
+        value: 10000
+  actions:
+    - type: SCORE_ADJUST
+      params: {delta: 160}
+    - type: STEP_UP_AUTH
+      params: {method: OTP_SMS}
