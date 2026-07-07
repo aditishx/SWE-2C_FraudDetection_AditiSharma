@@ -56,7 +56,7 @@ architecture artifacts themselves.
 | 6 | Event-Driven Architecture | ✅ Complete |
 | 7 | Rule Engine Design | ✅ Complete |
 | 8 | ML Architecture | ✅ Complete |
-| 9 | Graph Analysis | ⬜ Pending |
+| 9 | Graph Analysis | ✅ Complete |
 | 10 | Security Design | ⬜ Pending |
 | 11 | API Gateway | ⬜ Pending |
 | 12 | Monitoring | ⬜ Pending |
@@ -124,3 +124,11 @@ project's AI-Assisted Development Policy (Section E5).
 
 - [`docs/day08/01_ml_serving_architecture.md`](docs/day08/01_ml_serving_architecture.md) — Model registry, deployment pipeline, ONNX Runtime, feature store, ensemble, monitoring, champion-challenger
 - [`daily-commits/Day08_ML_Architecture.md`](daily-commits/Day08_ML_Architecture.md) — Day 8 work log
+
+## Day 9 deliverables
+
+- [`docs/day09/01_graph_schema.md`](docs/day09/01_graph_schema.md) — Property graph schema: 9 node types, 10 relationship types, all indexes
+- [`docs/day09/02_cypher_queries.md`](docs/day09/02_cypher_queries.md) — 5 Cypher query patterns + 3 fraud topology templates with sample data
+- [`docs/day09/03_graph_sync_and_maintenance.md`](docs/day09/03_graph_sync_and_maintenance.md) — Async update strategy, reconciliation, pruning, read replica design
+- [`diagrams/graph/day09_graph_schema_diagram.md`](diagrams/graph/day09_graph_schema_diagram.md) — Entity relationship diagram
+- [`daily-commits/Day09_Graph_Analysis_Design.md`](daily-commits/Day09_Graph_Analysis_Design.md) — Day 9 work log
