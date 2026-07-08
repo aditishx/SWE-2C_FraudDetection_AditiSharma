@@ -1,0 +1,20 @@
+# Istio PeerAuthentication — Strict mTLS for ALL inter-service communication
+# Day 10 Deliverable | Author: Aditi Sharma | Date: 8 July 2026
+#
+# mTLS means every service must present a valid certificate to talk to any
+# other service. An attacker who compromises one pod cannot impersonate
+# another service to access cardholder data — they lack the certificate.
+# "STRICT" mode means plaintext is rejected entirely (no fallback to HTTP).
+
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default-strict-mtls
+  namespace: fraud-detection        # applies to all services in this namespace
+spec:
+  mtls:
+    mode: STRICT
+---
+# Namespace-level default applies to all pods.
+# No service-level overrides — zero exceptions. Every hop is mTLS.
+# This satisfies PCI DSS Requirement 4.2.1: protect cardholder data in transit.

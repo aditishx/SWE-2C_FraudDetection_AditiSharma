@@ -1,0 +1,79 @@
+# Istio VirtualServices — Traffic Routing for Canary and Blue-Green Deployments
+# Day 10 Deliverable | Author: Aditi Sharma | Date: 8 July 2026
+
+# ── rule-engine-svc: Blue-Green deployment routing ────────────────────────
+# Blue-green: 100% traffic on stable, 0% on canary
+# Switches atomically when new version is ready (DNS/LB cutover)
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: rule-engine-svc
+  namespace: fraud-detection
+spec:
+  hosts:
+    - rule-engine-svc
+  http:
+    - route:
+        - destination:
+            host: rule-engine-svc
+            subset: stable          # defined in DestinationRule subsets
+          weight: 100
+        - destination:
+            host: rule-engine-svc
+            subset: canary
+          weight: 0
+      timeout: 55ms                 # slightly above 50ms gRPC deadline for buffer
+      retries:
+        attempts: 2
+        perTryTimeout: 25ms
+        retryOn: "reset,connect-failure,retriable-4xx"
+---
+
+# ── anomaly-detection-svc: Canary deployment routing ─────────────────────
+# Canary: 5% live traffic to new model version, 95% to stable
+# Traffic split controlled here — adjusted as confidence grows
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: anomaly-detection-svc
+  namespace: fraud-detection
+spec:
+  hosts:
+    - anomaly-detection-svc
+  http:
+    - route:
+        - destination:
+            host: anomaly-detection-svc
+            subset: stable
+          weight: 95
+        - destination:
+            host: anomaly-detection-svc
+            subset: canary
+          weight: 5
+      timeout: 35ms
+      retries:
+        attempts: 1
+        perTryTimeout: 30ms
+        retryOn: "reset,connect-failure"
+---
+
+# ── transaction-ingestion-svc: Rolling update (no traffic split needed) ───
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: transaction-ingestion-svc
+  namespace: fraud-detection
+spec:
+  hosts:
+    - transaction-ingestion-svc
+  http:
+    - route:
+        - destination:
+            host: transaction-ingestion-svc
+            subset: stable
+          weight: 100
+      timeout: 85ms
+      retries:
+        attempts: 2
+        perTryTimeout: 40ms
+        retryOn: "reset,connect-failure"

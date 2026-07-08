@@ -57,7 +57,7 @@ architecture artifacts themselves.
 | 7 | Rule Engine Design | ✅ Complete |
 | 8 | ML Architecture | ✅ Complete |
 | 9 | Graph Analysis | ✅ Complete |
-| 10 | Security Design | ⬜ Pending |
+| 10 | Security Design | ✅ Complete |
 | 11 | API Gateway | ⬜ Pending |
 | 12 | Monitoring | ⬜ Pending |
 | 13 | Observability & SLAs | ⬜ Pending |
@@ -132,3 +132,14 @@ project's AI-Assisted Development Policy (Section E5).
 - [`docs/day09/03_graph_sync_and_maintenance.md`](docs/day09/03_graph_sync_and_maintenance.md) — Async update strategy, reconciliation, pruning, read replica design
 - [`diagrams/graph/day09_graph_schema_diagram.md`](diagrams/graph/day09_graph_schema_diagram.md) — Entity relationship diagram
 - [`daily-commits/Day09_Graph_Analysis_Design.md`](daily-commits/Day09_Graph_Analysis_Design.md) — Day 9 work log
+
+## Day 10 deliverables
+
+- [`configs/istio/peer_authentication.yaml`](configs/istio/peer_authentication.yaml) — Strict mTLS namespace-wide, zero exceptions
+- [`configs/istio/authorization_policies.yaml`](configs/istio/authorization_policies.yaml) — Default-deny + per-service least-privilege allows
+- [`configs/istio/destination_rules.yaml`](configs/istio/destination_rules.yaml) — Connection pools, TLS, outlier detection per service
+- [`configs/istio/virtual_services.yaml`](configs/istio/virtual_services.yaml) — Blue-green (Rule Engine) and canary (Anomaly Detection) routing
+- [`docs/day10/01_service_communication_matrix.md`](docs/day10/01_service_communication_matrix.md) — 11×11 allowed connections matrix
+- [`docs/day10/02_encryption_strategy.md`](docs/day10/02_encryption_strategy.md) — AES-256 at rest, mTLS in transit, PAN tokenisation, key rotation
+- [`docs/day10/03_pci_dss_compliance_mapping.md`](docs/day10/03_pci_dss_compliance_mapping.md) — PCI DSS, RBI, GDPR requirement-to-component mapping
+- [`daily-commits/Day10_Security_Design.md`](daily-commits/Day10_Security_Design.md) — Day 10 work log

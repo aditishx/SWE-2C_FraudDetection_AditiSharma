@@ -1,0 +1,225 @@
+# Istio AuthorizationPolicies — Least-Privilege Service Communication
+# Day 10 Deliverable | Author: Aditi Sharma | Date: 8 July 2026
+#
+# Principle: every service can only talk to the services it explicitly needs.
+# A breach of notification-svc cannot pivot to rule-engine-svc because
+# the policy denies that connection at the infrastructure level.
+#
+# Default-deny: first policy denies ALL traffic, then per-service allows
+# are added explicitly. This is safer than default-allow with selective denies.
+
+# ── 0. Default deny-all ────────────────────────────────────────────────────
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all
+  namespace: fraud-detection
+spec:
+  {}   # empty spec = deny everything by default
+---
+
+# ── 1. API Gateway — entry point for external traffic ─────────────────────
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-gateway-ingress
+  namespace: fraud-detection
+spec:
+  selector:
+    matchLabels:
+      app: api-gateway
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["istio-ingress"]   # only the ingress controller
+---
+
+# ── 2. transaction-ingestion-svc ──────────────────────────────────────────
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-transaction-ingestion
+  namespace: fraud-detection
+spec:
+  selector:
+    matchLabels:
+      app: transaction-ingestion-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/fraud-detection/sa/api-gateway"
+      to:
+        - operation:
+            methods: ["POST"]
+            paths: ["/fraud.services.v1.TransactionIngestionService/*"]
+---
+
+# ── 3. rule-engine-svc ────────────────────────────────────────────────────
+# Allowed callers: Kafka (via enriched topic consumer — internal),
+# API Gateway (rule management REST endpoints only)
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-rule-engine
+  namespace: fraud-detection
+spec:
+  selector:
+    matchLabels:
+      app: rule-engine-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/fraud-detection/sa/api-gateway"
+      to:
+        - operation:
+            methods: ["GET", "POST", "PUT"]
+            paths: ["/api/v1/rules*"]
+    # Note: Kafka consumption is not an Istio-controlled connection (Kafka uses
+    # its own ACL auth) — the rule-engine pod reads Kafka internally.
+    # Only the Rule Management REST API surface is Istio-governed here.
+---
+
+# ── 4. anomaly-detection-svc ──────────────────────────────────────────────
+# Only reads from Kafka (internal) and calls customer-profile-svc
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-anomaly-detection
+  namespace: fraud-detection
+spec:
+  selector:
+    matchLabels:
+      app: anomaly-detection-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/fraud-detection/sa/anomaly-detection-svc"
+      to:
+        - operation:
+            paths: ["/fraud.services.v1.CustomerProfileService/GetProfile"]
+---
+
+# ── 5. graph-analysis-svc ─────────────────────────────────────────────────
+# Only reads from Kafka (internal) and calls reference-data-svc
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-graph-analysis
+  namespace: fraud-detection
+spec:
+  selector:
+    matchLabels:
+      app: graph-analysis-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/fraud-detection/sa/graph-analysis-svc"
+      to:
+        - operation:
+            paths: ["/fraud.services.v1.ReferenceDataService/*"]
+---
+
+# ── 6. risk-scoring-svc ───────────────────────────────────────────────────
+# Reads from Kafka (rule/ML/graph result topics — internal)
+# No direct gRPC inbound calls from other services
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-risk-scoring
+  namespace: fraud-detection
+spec:
+  selector:
+    matchLabels:
+      app: risk-scoring-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/fraud-detection/sa/api-gateway"
+      to:
+        - operation:
+            methods: ["GET"]
+            paths: ["/api/v1/transactions/*/risk-score"]
+---
+
+# ── 7. case-management-svc ────────────────────────────────────────────────
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-case-management
+  namespace: fraud-detection
+spec:
+  selector:
+    matchLabels:
+      app: case-management-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/fraud-detection/sa/api-gateway"
+      to:
+        - operation:
+            methods: ["GET", "PUT"]
+            paths: ["/api/v1/cases*"]
+---
+
+# ── 8. notification-svc ───────────────────────────────────────────────────
+# IMPORTANT: notification-svc is NOT allowed to call rule-engine-svc,
+# anomaly-detection-svc, or any detection service directly.
+# It only consumes Kafka topics and calls external delivery providers.
+# This policy enforces that boundary at the infrastructure level.
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-notification
+  namespace: fraud-detection
+spec:
+  selector:
+    matchLabels:
+      app: notification-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["fraud-detection"]
+      to:
+        - operation:
+            # notification-svc only exposes a health check and metrics
+            paths: ["/healthz", "/metrics"]
+---
+
+# ── 9. audit-compliance-svc ───────────────────────────────────────────────
+# Append-only: accepts writes from all services, exposes read endpoints
+# only to API Gateway (for regulatory query endpoints)
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-audit-compliance
+  namespace: fraud-detection
+spec:
+  selector:
+    matchLabels:
+      app: audit-compliance-svc
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/fraud-detection/sa/api-gateway"
+      to:
+        - operation:
+            methods: ["GET"]
+            paths: ["/api/v1/audit*"]
+    # Write path: all services publish to Kafka audit topic (Kafka ACL-controlled)
+    # audit-compliance-svc consumes from Kafka internally — not Istio-governed
