@@ -1,0 +1,211 @@
+# Prometheus Alerting & Recording Rules
+# Day 12 Deliverable | Author: Aditi Sharma | Date: 10 July 2026
+#
+# Recording rules pre-compute expensive queries so dashboards load fast.
+# Alerting rules fire notifications to PagerDuty / Slack based on severity.
+
+groups:
+
+# ─────────────────────────────────────────────────────────────────────────
+# RECORDING RULES — pre-computed metrics for Grafana dashboards
+# ─────────────────────────────────────────────────────────────────────────
+
+  - name: fraud_recording_rules
+    interval: 15s
+    rules:
+
+      # Transaction throughput — transactions per second, 1-min rolling average
+      - record: fraud:transaction_rate:1m
+        expr: rate(http_requests_total{service="transaction-ingestion-svc", path="/api/v1/transactions"}[1m])
+
+      # Fraud decision distribution — fraction of each action type
+      - record: fraud:decision_rate:auto_approve:5m
+        expr: rate(fraud_decisions_total{action="AUTO_APPROVE"}[5m]) / rate(fraud_decisions_total[5m])
+
+      - record: fraud:decision_rate:auto_decline:5m
+        expr: rate(fraud_decisions_total{action="AUTO_DECLINE"}[5m]) / rate(fraud_decisions_total[5m])
+
+      - record: fraud:decision_rate:step_up:5m
+        expr: rate(fraud_decisions_total{action="STEP_UP_AUTH"}[5m]) / rate(fraud_decisions_total[5m])
+
+      - record: fraud:decision_rate:manual_review:5m
+        expr: rate(fraud_decisions_total{action="MANUAL_REVIEW"}[5m]) / rate(fraud_decisions_total[5m])
+
+      # Pipeline latency percentiles — pre-computed for dashboard speed
+      - record: fraud:pipeline_latency_p99:5m
+        expr: histogram_quantile(0.99, rate(pipeline_duration_seconds_bucket[5m]))
+
+      - record: fraud:pipeline_latency_p95:5m
+        expr: histogram_quantile(0.95, rate(pipeline_duration_seconds_bucket[5m]))
+
+      # Per-service error rate
+      - record: fraud:service_error_rate:5m
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])
+
+      # Kafka consumer lag per partition (critical path topics only)
+      - record: fraud:kafka_lag_max:critical_path
+        expr: max by (topic, partition) (kafka_consumer_lag{
+          topic=~"fraud.transactions.enriched|fraud.rule.results|fraud.anomaly.scores|fraud.graph.signals|fraud.risk.decisions"
+        })
+
+      # ML model drift — PSI per feature
+      - record: fraud:model_psi_max:1h
+        expr: max by (feature_name) (model_feature_psi)
+
+# ─────────────────────────────────────────────────────────────────────────
+# ALERTING RULES — P1 through P4 severity
+# ─────────────────────────────────────────────────────────────────────────
+
+  - name: fraud_p1_alerts
+    rules:
+
+      # P1-001: Transaction pipeline completely down
+      - alert: TransactionPipelineDown
+        expr: fraud:transaction_rate:1m == 0
+        for: 2m
+        labels:
+          severity: P1
+          team: platform
+        annotations:
+          summary: "CRITICAL: Transaction pipeline processing zero transactions"
+          description: "No transactions processed in the last 2 minutes. Pipeline may be down."
+          runbook: "https://wiki.shieldpay.in/runbooks/P1-001-pipeline-down"
+
+      # P1-002: Fraud detection rate collapsed
+      - alert: FraudDetectionRateCollapsed
+        expr: fraud:decision_rate:auto_decline:5m + fraud:decision_rate:manual_review:5m < 0.002
+        for: 10m
+        labels:
+          severity: P1
+          team: fraud-ops
+        annotations:
+          summary: "CRITICAL: Fraud detection rate dropped below 80% baseline"
+          description: "Combined decline + review rate collapsed — rule engine or ML may be broken."
+          runbook: "https://wiki.shieldpay.in/runbooks/P1-002-detection-collapsed"
+
+      # P1-003: Pipeline latency SLA breach (sustained)
+      - alert: PipelineLatencySLABreach
+        expr: fraud:pipeline_latency_p99:5m > 0.200
+        for: 5m
+        labels:
+          severity: P1
+          team: platform
+        annotations:
+          summary: "CRITICAL: p99 pipeline latency exceeds 200ms SLA"
+          description: "p99 latency: {{ $value | humanizeDuration }}. SLA target: 200ms."
+          runbook: "https://wiki.shieldpay.in/runbooks/P1-003-latency-breach"
+
+      # P1-004: Data breach indicators — abnormal outbound data volume
+      - alert: AbnormalDataExfiltration
+        expr: rate(bytes_sent_total{destination!~".*shieldpay.*"}[5m]) > 100000000
+        for: 1m
+        labels:
+          severity: P1
+          team: security
+        annotations:
+          summary: "CRITICAL: Abnormal outbound data volume detected"
+          description: "Potential data exfiltration: {{ $value | humanize }} bytes/s to external destination."
+          runbook: "https://wiki.shieldpay.in/runbooks/P1-004-data-breach"
+
+  - name: fraud_p2_alerts
+    rules:
+
+      # P2-001: Single service error rate above 1%
+      - alert: ServiceErrorRateHigh
+        expr: fraud:service_error_rate:5m > 0.01
+        for: 5m
+        labels:
+          severity: P2
+          team: platform
+        annotations:
+          summary: "HIGH: {{ $labels.service }} error rate above 1%"
+          description: "Error rate: {{ $value | humanizePercentage }}. Check logs for 5xx causes."
+          runbook: "https://wiki.shieldpay.in/runbooks/P2-001-service-errors"
+
+      # P2-002: Kafka consumer lag — critical path topics
+      - alert: KafkaConsumerLagHigh
+        expr: fraud:kafka_lag_max:critical_path > 10000
+        for: 5m
+        labels:
+          severity: P2
+          team: platform
+        annotations:
+          summary: "HIGH: Kafka consumer lag exceeding 10,000 messages on {{ $labels.topic }}"
+          description: "Partition {{ $labels.partition }} lag: {{ $value }} messages. Consumer may be stalled."
+          runbook: "https://wiki.shieldpay.in/runbooks/P2-002-kafka-lag"
+
+      # P2-003: Latency SLA warning (below P1 threshold but degrading)
+      - alert: PipelineLatencyDegrading
+        expr: fraud:pipeline_latency_p95:5m > 0.150
+        for: 5m
+        labels:
+          severity: P2
+          team: platform
+        annotations:
+          summary: "HIGH: p95 pipeline latency exceeds 150ms warning threshold"
+          description: "p95 latency: {{ $value | humanizeDuration }}. Trending toward P1 threshold."
+
+      # P2-004: ML model data drift detected
+      - alert: ModelDataDriftDetected
+        expr: fraud:model_psi_max:1h > 0.25
+        for: 0m
+        labels:
+          severity: P2
+          team: ml-platform
+        annotations:
+          summary: "HIGH: ML model data drift detected (PSI > 0.25)"
+          description: "Feature {{ $labels.feature_name }} PSI: {{ $value }}. Retraining may be needed."
+          runbook: "https://wiki.shieldpay.in/runbooks/P2-004-model-drift"
+
+      # P2-005: Rule engine evaluation error (any error for CRITICAL rules)
+      - alert: CriticalRuleEvaluationError
+        expr: rate(rule_evaluation_errors_total{severity="CRITICAL"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: P2
+          team: fraud-rules
+        annotations:
+          summary: "HIGH: CRITICAL fraud rule evaluation errors detected"
+          description: "Rule {{ $labels.rule_id }} is producing errors. Detection gap possible."
+
+  - name: fraud_p3_alerts
+    rules:
+
+      # P3-001: False positive rate increased 20% over 7-day baseline
+      - alert: FalsePositiveRateIncreased
+        expr: >
+          (fraud:decision_rate:step_up:5m + fraud:decision_rate:manual_review:5m)
+          / fraud:decision_rate:step_up:5m * 100
+          > (1.2 * avg_over_time(fraud_false_positive_rate[7d]) * 100)
+        for: 30m
+        labels:
+          severity: P3
+          team: fraud-ops
+        annotations:
+          summary: "MEDIUM: False positive rate increased >20% vs 7-day baseline"
+          description: "Customer friction increasing. Review recent rule changes."
+
+      # P3-002: Non-critical service degradation
+      - alert: NonCriticalServiceDegraded
+        expr: fraud:service_error_rate:5m{service=~"case-management-svc|notification-svc"} > 0.05
+        for: 10m
+        labels:
+          severity: P3
+          team: platform
+        annotations:
+          summary: "MEDIUM: {{ $labels.service }} error rate elevated"
+          description: "{{ $value | humanizePercentage }} errors. Non-critical path — investigate during business hours."
+
+  - name: fraud_p4_alerts
+    rules:
+
+      # P4-001: Infrastructure cost spike
+      - alert: InfrastructureCostSpike
+        expr: infra_estimated_hourly_cost_usd > 500
+        for: 60m
+        labels:
+          severity: P4
+          team: platform
+        annotations:
+          summary: "LOW: Infrastructure cost spike detected"
+          description: "Estimated cost: ${{ $value }}/hour. Budget: $400/hour. Review scaling events."

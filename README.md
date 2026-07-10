@@ -58,8 +58,8 @@ architecture artifacts themselves.
 | 8 | ML Architecture | ✅ Complete |
 | 9 | Graph Analysis | ✅ Complete |
 | 10 | Security Design | ✅ Complete |
-| 11 | API Gateway | ⬜ Pending |
-| 12 | Monitoring | ⬜ Pending |
+| 11 | API Gateway | ✅ Complete |
+| 12 | Monitoring | ✅ Complete |
 | 13 | Observability & SLAs | ⬜ Pending |
 | 14 | CI/CD & Deployment | ⬜ Pending |
 | 15 | Final Assembly | ⬜ Pending |
@@ -143,3 +143,17 @@ project's AI-Assisted Development Policy (Section E5).
 - [`docs/day10/02_encryption_strategy.md`](docs/day10/02_encryption_strategy.md) — AES-256 at rest, mTLS in transit, PAN tokenisation, key rotation
 - [`docs/day10/03_pci_dss_compliance_mapping.md`](docs/day10/03_pci_dss_compliance_mapping.md) — PCI DSS, RBI, GDPR requirement-to-component mapping
 - [`daily-commits/Day10_Security_Design.md`](daily-commits/Day10_Security_Design.md) — Day 10 work log
+
+## Day 11 deliverables
+
+- [`docs/day11/01_api_gateway_config.md`](docs/day11/01_api_gateway_config.md) — Kong declarative config for all 5 routes with plugins
+- [`docs/day11/02_rate_limiting_policy.md`](docs/day11/02_rate_limiting_policy.md) — 5-tier rate limiting framework with Redis counter design
+- [`docs/day11/03_auth_flow_diagrams.md`](docs/day11/03_auth_flow_diagrams.md) — JWT, API Key, and analyst role-based auth flows
+- [`daily-commits/Day11_Gateway_Design.md`](daily-commits/Day11_Gateway_Design.md) — Day 11 work log
+
+## Day 12 deliverables
+
+- [`configs/monitoring/prometheus_rules.yaml`](configs/monitoring/prometheus_rules.yaml) — Recording rules + P1-P4 alerting rules
+- [`docs/day12/01_grafana_dashboards.md`](docs/day12/01_grafana_dashboards.md) — 4 dashboard specs + Alertmanager routing config
+- [`docs/day12/02_runbooks.md`](docs/day12/02_runbooks.md) — P1-001, P1-002, P2-001, P2-002 runbooks with kubectl commands
+- [`daily-commits/Day12_Monitoring_Design.md`](daily-commits/Day12_Monitoring_Design.md) — Day 12 work log
