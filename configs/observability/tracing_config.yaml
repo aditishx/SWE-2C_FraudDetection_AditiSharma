@@ -1,0 +1,171 @@
+# OpenTelemetry Tracing Configuration
+# Day 13 Deliverable | Author: Aditi Sharma | Date: 11 July 2026
+#
+# Distributed tracing connects every hop in the transaction pipeline
+# under one trace_id — from API Gateway ingestion to risk decision to audit.
+# This is what lets you answer "why did this specific transaction take 180ms?"
+# without guessing which service was slow.
+
+# ─────────────────────────────────────────────────────────────────────────
+# OTEL Collector — central aggregation and export
+# ─────────────────────────────────────────────────────────────────────────
+otel_collector:
+  image: otel/opentelemetry-collector-contrib:0.95.0
+  namespace: observability
+
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+  processors:
+    batch:
+      timeout: 1s
+      send_batch_size: 1024
+    memory_limiter:
+      limit_mib: 512
+      spike_limit_mib: 128
+    # PII protection: remove any attribute that might contain raw PAN or personal data
+    attributes:
+      actions:
+        - key: card_number
+          action: delete
+        - key: cvv
+          action: delete
+        - key: cardholder_name
+          action: delete
+
+  exporters:
+    jaeger:
+      endpoint: "jaeger-collector.observability.svc:14250"
+      tls:
+        insecure: false
+        cert_file: /vault/secrets/otel-client.crt
+        key_file:  /vault/secrets/otel-client.key
+    # Also export to Prometheus for span-derived metrics
+    prometheus:
+      endpoint: "0.0.0.0:8889"
+
+  service:
+    pipelines:
+      traces:
+        receivers:  [otlp]
+        processors: [memory_limiter, attributes, batch]
+        exporters:  [jaeger]
+
+# ─────────────────────────────────────────────────────────────────────────
+# SDK Configuration — applied per service via environment variables
+# ─────────────────────────────────────────────────────────────────────────
+sdk:
+  # Injected as env vars into every service container via Kubernetes ConfigMap
+  env_vars:
+    OTEL_SERVICE_NAME:              "$(SERVICE_NAME)"       # from pod label
+    OTEL_EXPORTER_OTLP_ENDPOINT:   "http://otel-collector.observability.svc:4317"
+    OTEL_EXPORTER_OTLP_PROTOCOL:   "grpc"
+    OTEL_TRACES_SAMPLER:           "parentbased_traceidratio"
+    OTEL_TRACES_SAMPLER_ARG:       "0.1"   # 10% sampling at steady state (see sampling below)
+    OTEL_PROPAGATORS:              "tracecontext,baggage"  # W3C TraceContext standard
+    OTEL_RESOURCE_ATTRIBUTES:      "deployment.environment=$(ENVIRONMENT),cloud.region=$(REGION)"
+
+# ─────────────────────────────────────────────────────────────────────────
+# SAMPLING STRATEGY
+# ─────────────────────────────────────────────────────────────────────────
+sampling:
+  strategy: head_based_with_override
+
+  default_rate: 0.10        # 10% of all transactions sampled at steady state
+                            # At 50,000 TPS → 5,000 traces/sec stored
+                            # 10% gives statistical validity for latency analysis
+
+  overrides:
+    # Always sample slow requests (tail-based override)
+    - condition: "duration_ms > 150"   # above p95 target
+      rate: 1.0                         # 100% — capture every slow trace
+
+    # Always sample errors
+    - condition: "status_code >= 500"
+      rate: 1.0
+
+    # Always sample fraud decisions (for audit trail + debugging)
+    - condition: "span.attribute['fraud.action'] IN ['AUTO_DECLINE','MANUAL_REVIEW']"
+      rate: 1.0
+
+    # Always sample graph-timed-out traces (understand when/why graph misses deadline)
+    - condition: "span.attribute['graph.timed_out'] == true"
+      rate: 1.0
+
+  rationale: |
+    10% base rate captures enough traffic for p50/p95/p99 latency accuracy
+    (±2% error at 10% sampling rate by central limit theorem).
+    100% capture for slow/error/fraud traces ensures we never miss a trace
+    when we actually need to investigate something.
+
+# ─────────────────────────────────────────────────────────────────────────
+# CUSTOM SPAN ATTRIBUTES — per service
+# ─────────────────────────────────────────────────────────────────────────
+custom_span_attributes:
+
+  transaction_ingestion_svc:
+    - "transaction.id"
+    - "transaction.channel"
+    - "transaction.amount_inr"
+    - "transaction.merchant_mcc"
+    - "enrichment.device_fp_latency_ms"
+    - "enrichment.geo_latency_ms"
+    - "enrichment.partial"            # true if enrichment timed out
+
+  rule_engine_svc:
+    - "rule.evaluation_ms"
+    - "rule.triggered_count"
+    - "rule.score_delta_total"
+    - "rule.cache_hit"               # true if rules served from in-memory cache
+
+  anomaly_detection_svc:
+    - "ml.model_version"
+    - "ml.supervised_score"
+    - "ml.unsupervised_score"
+    - "ml.feature_store_hit"         # true if Redis cache hit
+    - "ml.inference_ms"
+
+  graph_analysis_svc:
+    - "graph.hops_to_fraud"
+    - "graph.community_suspicion"
+    - "graph.topology_matched"
+    - "graph.query_ms"
+    - "graph.timed_out"              # true if graph missed 50ms deadline
+
+  risk_scoring_svc:
+    - "risk.composite_score"
+    - "risk.action"
+    - "risk.graph_signal_used"       # false if graph timed out
+    - "risk.rule_weight"
+    - "risk.ml_weight"
+    - "risk.graph_weight"
+
+# ─────────────────────────────────────────────────────────────────────────
+# TRACE CONTEXT PROPAGATION — across sync and async boundaries
+# ─────────────────────────────────────────────────────────────────────────
+context_propagation:
+
+  synchronous_grpc:
+    mechanism: "W3C TraceContext in gRPC metadata headers"
+    header: "traceparent"
+    example: "traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+
+  asynchronous_kafka:
+    mechanism: "trace_id embedded in every Kafka message payload"
+    field: "trace_id"
+    note: |
+      Kafka message headers also carry W3C TraceContext for consumers
+      that support it. The payload-level trace_id is a fallback for
+      consumers that read the message body only.
+      This ensures trace continuity across the async Kafka boundary —
+      without this, the trace would be broken at every Kafka publish/consume pair.
+
+  jaeger_storage:
+    retention_days: 30
+    backend: "Elasticsearch (shared with log storage)"
+    index_pattern: "jaeger-span-{YYYY-MM-DD}"

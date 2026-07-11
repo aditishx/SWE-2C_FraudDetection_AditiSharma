@@ -60,7 +60,7 @@ architecture artifacts themselves.
 | 10 | Security Design | ✅ Complete |
 | 11 | API Gateway | ✅ Complete |
 | 12 | Monitoring | ✅ Complete |
-| 13 | Observability & SLAs | ⬜ Pending |
+| 13 | Observability & SLAs | ✅ Complete |
 | 14 | CI/CD & Deployment | ⬜ Pending |
 | 15 | Final Assembly | ⬜ Pending |
 
@@ -157,3 +157,10 @@ project's AI-Assisted Development Policy (Section E5).
 - [`docs/day12/01_grafana_dashboards.md`](docs/day12/01_grafana_dashboards.md) — 4 dashboard specs + Alertmanager routing config
 - [`docs/day12/02_runbooks.md`](docs/day12/02_runbooks.md) — P1-001, P1-002, P2-001, P2-002 runbooks with kubectl commands
 - [`daily-commits/Day12_Monitoring_Design.md`](daily-commits/Day12_Monitoring_Design.md) — Day 12 work log
+
+## Day 13 deliverables
+
+- [`configs/observability/logging_standard.md`](configs/observability/logging_standard.md) — Structured JSON logging standard, PII masking rules, retention policy, Fluent Bit pipeline
+- [`configs/observability/tracing_config.yaml`](configs/observability/tracing_config.yaml) — OpenTelemetry collector config, sampling strategy, custom span attributes, Kafka trace propagation
+- [`docs/day13/01_sla_specification.md`](docs/day13/01_sla_specification.md) — Final SLA document: pipeline SLAs, per-service SLAs, error budget policy, latency budget breakdown
+- [`daily-commits/Day13_Observability_Design.md`](daily-commits/Day13_Observability_Design.md) — Day 13 work log
