@@ -1,0 +1,266 @@
+# Kubernetes Manifests — rule-engine-svc
+# Day 14 Deliverable | Author: Aditi Sharma | Date: 12 July 2026
+
+---
+# ── Deployment ────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rule-engine-svc
+  namespace: fraud-detection
+  labels:
+    app: rule-engine-svc
+    version: stable
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rule-engine-svc
+      version: stable
+  strategy:
+    type: RollingUpdate       # Note: blue-green is handled at Istio VirtualService level
+    rollingUpdate:            # This rolling update keeps the deployment object healthy
+      maxSurge: 1
+      maxUnavailable: 0       # Never reduce below 3 pods during update
+  template:
+    metadata:
+      labels:
+        app: rule-engine-svc
+        version: stable
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: rule-engine-svc    # for Istio mTLS identity
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: rule-engine-svc
+          image: ghcr.io/shieldpay/rule-engine-svc:latest   # overridden by GitOps
+          imagePullPolicy: Always
+
+          ports:
+            - name: grpc
+              containerPort: 8080
+            - name: management
+              containerPort: 8081
+
+          # Resource requests and limits — prevents noisy-neighbour effects
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+
+          env:
+            - name: ENVIRONMENT
+              value: production
+            - name: REGION
+              value: ap-south-1
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: SERVICE_NAME
+              value: rule-engine-svc
+            - name: IMAGE_TAG
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['app.kubernetes.io/version']
+
+          # Secrets from HashiCorp Vault via external-secrets operator
+          # Never hardcode credentials — they are injected from Vault
+          envFrom:
+            - secretRef:
+                name: rule-engine-svc-secrets    # synced from Vault by ESO
+
+          # ConfigMap for non-sensitive configuration
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+
+          # Readiness probe — pod receives traffic only after rule cache is loaded
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 8081
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+
+          # Liveness probe — restart pod if it becomes stuck
+          livenessProbe:
+            httpGet:
+              path: /healthz/live
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+
+          # Startup probe — gives enough time for rule cache warm-up on first start
+          startupProbe:
+            httpGet:
+              path: /healthz/started
+              port: 8081
+            failureThreshold: 12     # 12 × 10s = 120s max startup time
+            periodSeconds: 10
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+
+      volumes:
+        - name: config
+          configMap:
+            name: rule-engine-svc-config
+
+      # Spread pods across availability zones
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: rule-engine-svc
+
+---
+# ── Service ───────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: rule-engine-svc
+  namespace: fraud-detection
+spec:
+  selector:
+    app: rule-engine-svc
+  ports:
+    - name: grpc
+      port: 8080
+      targetPort: 8080
+    - name: management
+      port: 8081
+      targetPort: 8081
+  type: ClusterIP            # internal only — not exposed externally
+
+---
+# ── HorizontalPodAutoscaler ───────────────────────────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: rule-engine-svc
+  namespace: fraud-detection
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: rule-engine-svc
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60    # scale before CPU is saturated
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70
+    # Custom metric: scale on Kafka consumer lag
+    - type: External
+      external:
+        metric:
+          name: kafka_consumer_lag
+          selector:
+            matchLabels:
+              topic: fraud.transactions.enriched
+              consumer_group: rule-engine-cg
+        target:
+          type: AverageValue
+          averageValue: "500"       # scale out if lag per pod > 500 messages
+
+---
+# ── PodDisruptionBudget ───────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rule-engine-svc
+  namespace: fraud-detection
+spec:
+  minAvailable: 2           # always keep at least 2 pods running during node maintenance
+  selector:
+    matchLabels:
+      app: rule-engine-svc
+
+---
+# ── NetworkPolicy ─────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: rule-engine-svc
+  namespace: fraud-detection
+spec:
+  podSelector:
+    matchLabels:
+      app: rule-engine-svc
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Only allow inbound from API Gateway and Istio control plane
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+      ports:
+        - port: 8080
+  egress:
+    # Allow outbound to PostgreSQL, Redis, Kafka, and reference-data-svc
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgresql
+      ports:
+        - port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app: kafka
+      ports:
+        - port: 9092
+    - to:
+        - podSelector:
+            matchLabels:
+              app: reference-data-svc
+      ports:
+        - port: 8080
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - port: 53
+          protocol: UDP
